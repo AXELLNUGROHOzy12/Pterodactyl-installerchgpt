@@ -1,51 +1,61 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-# PTERODACTYL PANEL AUTO INSTALLER - UBUNTU 20.04/22.04
+# Warna untuk tampilan
+GREEN='\033[0;32m'
+NC='\033[0m'
 
-echo -e "\n🦴 Installing Pterodactyl Panel..."
-echo "🔄 Updating system..."
-apt update -y && apt upgrade -y
+# Tanyakan domain saat script dijalankan
+read -p "Masukkan domain panel kamu (contoh: panel.domainmu.com): " DOMAIN
 
-echo "📦 Installing required packages..."
-apt install -y nginx mariadb-server php php-{cli,gd,mysql,mbstring,xml,fpm,curl,zip,bcmath,common,tokenizer} curl unzip git redis-server supervisor
+echo -e "${GREEN}[+] Domain yang digunakan: $DOMAIN${NC}"
 
-echo "🧱 Setting up MariaDB..."
-mysql_secure_installation <<EOF
+# Cek dan install 'expect' jika belum ada
+if ! command -v expect &> /dev/null; then
+    echo -e "${GREEN}[+] Installing expect...${NC}"
+    apt update && apt install -y expect
+fi
 
-y
-ptero123
-ptero123
-y
-y
-y
-y
+# Download script installer ke file sementara
+INSTALLER_SCRIPT="/tmp/ptero_installer.sh"
+curl -sSL https://pterodactyl-installer.se -o "$INSTALLER_SCRIPT"
+chmod +x "$INSTALLER_SCRIPT"
+
+# Jalankan script installer menggunakan expect
+expect <<EOF
+set timeout -1
+spawn bash "$INSTALLER_SCRIPT"
+
+expect {
+    "*Masukkan Nama Anda*" {
+        send "AXEL\r"
+        exp_continue
+    }
+    "*Masukkan Username Panel*" {
+        send "AXEL\r"
+        exp_continue
+    }
+    "*Masukkan Nama Panel*" {
+        send "AXEL\r"
+        exp_continue
+    }
+    "*Masukkan Domain Anda*" {
+        send "$DOMAIN\r"
+        exp_continue
+    }
+    "*Masukkan Alamat Email*" {
+        send "Dst\r"
+        exp_continue
+    }
+    "*Apakah Anda yakin*" {
+        send "y\r"
+        exp_continue
+    }
+    "*Y/n*" {
+        send "y\r"
+        exp_continue
+    }
+    eof
+}
 EOF
 
-mysql -u root -pptero123 -e "CREATE DATABASE panel;"
-mysql -u root -pptero123 -e "CREATE USER 'ptero'@'127.0.0.1' IDENTIFIED BY 'ptero123';"
-mysql -u root -pptero123 -e "GRANT ALL PRIVILEGES ON panel.* TO 'ptero'@'127.0.0.1';"
-mysql -u root -pptero123 -e "FLUSH PRIVILEGES;"
-
-echo "📁 Downloading panel files..."
-cd /var/www/
-curl -Lo panel.tar.gz https://github.com/pterodactyl/panel/releases/latest/download/panel.tar.gz
-mkdir -p /var/www/pterodactyl && tar -xzvf panel.tar.gz -C /var/www/pterodactyl
-cd /var/www/pterodactyl
-
-echo "📦 Installing Composer & dependencies..."
-curl -sS https://getcomposer.org/installer | php
-mv composer.phar /usr/local/bin/composer
-composer install --no-dev --optimize-autoloader
-
-cp .env.example .env
-php artisan key:generate --force
-
-echo "⚙️ Running initial setup..."
-php artisan p:environment:setup --author="admin@example.com" --url="http://localhost" --timezone="Asia/Jakarta" --cache="redis" --session="redis" --queue="redis"
-php artisan p:environment:database --host=127.0.0.1 --port=3306 --database=panel --username=ptero --password=ptero123
-php artisan migrate --seed --force
-
-chown -R www-data:www-data /var/www/pterodactyl
-chmod -R 755 /var/www/pterodactyl/storage/* /var/www/pterodactyl/bootstrap/cache
-
-echo "✅ Done! Now access http://your-ip in browser"
+echo -e "${GREEN}[✓] Instalasi Pterodactyl selesai menggunakan domain: $DOMAIN${NC}"
